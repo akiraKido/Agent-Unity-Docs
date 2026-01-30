@@ -41,15 +41,16 @@ jobs:
               continue
             fi
 
-            # リモートの Last-Modified を取得
-            REMOTE_DATE=$(curl -sI "$URL" | grep -i "last-modified" | cut -d: -f2- | xargs)
+            # リモートの Last-Modified を Unix timestamp に変換
+            REMOTE_DATE_RAW=$(curl -sI "$URL" | grep -i "last-modified" | cut -d: -f2- | xargs)
+            REMOTE_DATE=$(date -d "$REMOTE_DATE_RAW" +%s 2>/dev/null || date -j -f "%a, %d %b %Y %H:%M:%S %Z" "$REMOTE_DATE_RAW" +%s 2>/dev/null || echo "")
 
             # R2 にある既存ファイルの Last-Modified を取得
             LOCAL_DATE=$(aws s3api head-object \
               --bucket "$R2_BUCKET" \
               --key "$R2_KEY" \
               --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
-              --query "Metadata.source-last-modified" \
+              --query "Metadata.\"source-last-modified\"" \
               --output text 2>/dev/null || echo "")
 
             if [ "$REMOTE_DATE" = "$LOCAL_DATE" ]; then
@@ -63,7 +64,7 @@ jobs:
             echo "Uploading to R2..."
             aws s3 cp "$FILE" "s3://${R2_BUCKET}/${R2_KEY}" \
               --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
-              --metadata "source-last-modified=${REMOTE_DATE}"
+              --metadata source-last-modified="$REMOTE_DATE"
 
             rm "$FILE"
           done
