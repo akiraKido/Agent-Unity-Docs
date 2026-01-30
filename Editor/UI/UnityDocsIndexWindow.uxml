@@ -1,0 +1,57 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <ui:VisualElement class="root">
+        <!-- Header -->
+        <ui:VisualElement class="header">
+            <ui:Label name="title" class="title" />
+            <ui:VisualElement class="spacer" />
+            <ui:VisualElement class="language-buttons">
+                <ui:Button name="btn-en" text="EN" class="lang-btn" />
+                <ui:Button name="btn-ja" text="JA" class="lang-btn" />
+                <ui:Button name="btn-zh" text="中" class="lang-btn" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Description -->
+        <ui:VisualElement name="description-box" class="info-box">
+            <ui:Label name="description" class="info-text" />
+        </ui:VisualElement>
+
+        <!-- Documentation Source Section -->
+        <ui:Label name="source-header" class="section-header" />
+
+        <ui:VisualElement class="panel">
+            <ui:TextField name="version" class="text-field" />
+            <ui:TextField name="cdn-url" class="text-field" />
+            <ui:VisualElement name="url-preview-box" class="info-box small">
+                <ui:Label name="url-preview" class="info-text small" />
+            </ui:VisualElement>
+            <ui:Label name="cdn-example" class="hint-label" />
+        </ui:VisualElement>
+
+        <!-- Output Settings Section -->
+        <ui:Label name="output-header" class="section-header" />
+
+        <ui:VisualElement class="field-row">
+            <ui:TextField name="output-file" class="text-field-stretch" />
+            <ui:Button name="btn-browse-output" class="browse-btn" />
+        </ui:VisualElement>
+
+        <!-- Status -->
+        <ui:VisualElement name="status-box" class="status-box">
+            <ui:Label name="status-message" class="status-text" />
+        </ui:VisualElement>
+
+        <!-- Progress Bar -->
+        <ui:ProgressBar name="progress-bar" class="progress-bar" />
+
+        <!-- Buttons -->
+        <ui:VisualElement class="button-row">
+            <ui:Button name="btn-cancel" class="action-btn cancel-btn" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="spacer-small" />
+
+        <ui:Button name="btn-generate" class="action-btn generate-btn" />
+        <ui:Button name="btn-reset" class="action-btn reset-btn" />
+    </ui:VisualElement>
+</ui:UXML>
