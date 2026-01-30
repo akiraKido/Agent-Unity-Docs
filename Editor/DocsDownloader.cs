@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -11,9 +13,88 @@ namespace UnityDocsIndex.Editor
 {
     public static class DocsDownloader
     {
-        public const string OfficialCdnUrl = "https://cloudmedia-docs.unity3d.com/docscloudstorage/en";
+        private const string CdnVersionsFileName = "cdn_versions.json";
 
+        private static HashSet<string> _cloudMediaVersions;
+        private static string _googleStorageBase;
+        private static string _cloudMediaBase;
         private static string _customCdnUrl = "";
+
+        static DocsDownloader()
+        {
+            LoadCdnVersions();
+        }
+
+        private static void LoadCdnVersions()
+        {
+            _cloudMediaVersions = new HashSet<string>();
+            _googleStorageBase = "https://storage.googleapis.com/docscloudstorage";
+            _cloudMediaBase = "https://cloudmedia-docs.unity3d.com/docscloudstorage/en";
+
+            var jsonPath = FindCdnVersionsJson();
+            if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
+            {
+                Debug.LogWarning("cdn_versions.json not found, using defaults");
+                // Fallback defaults
+                _cloudMediaVersions = new HashSet<string>
+                {
+                    "6000.5", "6000.4", "6000.3", "6000.2", "6000.1", "6000.0",
+                    "2023.2", "2023.1", "2022.3", "2022.2", "2021.3", "2020.3"
+                };
+                return;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(jsonPath);
+                ParseCdnVersionsJson(json);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Failed to load cdn_versions.json: {e.Message}");
+            }
+        }
+
+        private static string FindCdnVersionsJson()
+        {
+            var guids = AssetDatabase.FindAssets("cdn_versions");
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.EndsWith(CdnVersionsFileName))
+                {
+                    return path;
+                }
+            }
+            return null;
+        }
+
+        private static void ParseCdnVersionsJson(string json)
+        {
+            // Simple JSON parser for our specific format
+            var cloudmediaMatch = Regex.Match(json, @"""cloudmedia""\s*:\s*\[(.*?)\]", RegexOptions.Singleline);
+            if (cloudmediaMatch.Success)
+            {
+                var versionsStr = cloudmediaMatch.Groups[1].Value;
+                var versionMatches = Regex.Matches(versionsStr, @"""([^""]+)""");
+                foreach (Match m in versionMatches)
+                {
+                    _cloudMediaVersions.Add(m.Groups[1].Value);
+                }
+            }
+
+            var gsMatch = Regex.Match(json, @"""google_storage_base""\s*:\s*""([^""]+)""");
+            if (gsMatch.Success)
+            {
+                _googleStorageBase = gsMatch.Groups[1].Value;
+            }
+
+            var cmMatch = Regex.Match(json, @"""cloudmedia_base""\s*:\s*""([^""]+)""");
+            if (cmMatch.Success)
+            {
+                _cloudMediaBase = cmMatch.Groups[1].Value;
+            }
+        }
 
         public static string GetUnityVersion()
         {
@@ -42,15 +123,31 @@ namespace UnityDocsIndex.Editor
         public static string GetDocsUrl(string version)
         {
             var normalized = NormalizeVersion(version);
-            var baseUrl = string.IsNullOrEmpty(_customCdnUrl) ? OfficialCdnUrl : _customCdnUrl;
-            return $"{baseUrl}/{normalized}/UnityDocumentation.zip";
+            if (!string.IsNullOrEmpty(_customCdnUrl))
+            {
+                return $"{_customCdnUrl}/{normalized}/UnityDocumentation.zip";
+            }
+            return GetOfficialDocsUrl(normalized);
         }
 
         public static string GetCurrentDocsUrl(string version, string cdnUrl)
         {
             var normalized = NormalizeVersion(version);
-            var baseUrl = string.IsNullOrEmpty(cdnUrl) ? OfficialCdnUrl : cdnUrl;
-            return $"{baseUrl}/{normalized}/UnityDocumentation.zip";
+            if (!string.IsNullOrEmpty(cdnUrl))
+            {
+                return $"{cdnUrl}/{normalized}/UnityDocumentation.zip";
+            }
+            return GetOfficialDocsUrl(normalized);
+        }
+
+        private static string GetOfficialDocsUrl(string normalizedVersion)
+        {
+            // Use cloudmedia if available (faster), otherwise Google Storage
+            if (_cloudMediaVersions != null && _cloudMediaVersions.Contains(normalizedVersion))
+            {
+                return $"{_cloudMediaBase}/{normalizedVersion}/UnityDocumentation.zip";
+            }
+            return $"{_googleStorageBase}/{normalizedVersion}/UnityDocumentation.zip";
         }
 
         public static async Task<DownloadResult> DownloadDocsAsync(

@@ -12,6 +12,9 @@ jobs:
     # フォークでは実行しない
     if: github.repository == 'akiraKido/Agent-Unity-Docs'
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Sync Unity Documentation to R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -23,6 +26,12 @@ jobs:
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
+          # cdn_versions.json から設定を読み込む
+          CDN_JSON="Editor/cdn_versions.json"
+          CLOUDMEDIA_VERSIONS=$(jq -r '.cloudmedia[]' "$CDN_JSON")
+          CLOUDMEDIA_BASE=$(jq -r '.cloudmedia_base' "$CDN_JSON")
+          GOOGLE_STORAGE_BASE=$(jq -r '.google_storage_base' "$CDN_JSON")
+
           # バージョン一覧を取得し、major.minor に変換して重複除去
           VERSIONS=$(curl -s "https://public-cdn.cloud.unity3d.com/hub/prod/releases-win32.json" \
             | jq -r '.official[].version' \
@@ -30,20 +39,26 @@ jobs:
             | sort -u -V -r)
 
           for VERSION in $VERSIONS; do
-            URL="https://cloudmedia-docs.unity3d.com/docscloudstorage/en/${VERSION}/UnityDocumentation.zip"
             R2_KEY="${VERSION}/UnityDocumentation.zip"
             FILE="UnityDocumentation.zip"
+
+            # cloudmedia か Google Storage かを判定
+            if echo "$CLOUDMEDIA_VERSIONS" | grep -q "^${VERSION}$"; then
+              URL="${CLOUDMEDIA_BASE}/${VERSION}/UnityDocumentation.zip"
+            else
+              URL="${GOOGLE_STORAGE_BASE}/${VERSION}/UnityDocumentation.zip"
+            fi
 
             # ドキュメントが存在するか確認
             STATUS=$(curl -sI -o /dev/null -w "%{http_code}" "$URL")
             if [ "$STATUS" != "200" ]; then
-              echo "Skip $VERSION (not found)"
+              echo "Skip $VERSION (not found at $URL)"
               continue
             fi
 
             # リモートの Last-Modified を Unix timestamp に変換
             REMOTE_DATE_RAW=$(curl -sI "$URL" | grep -i "last-modified" | cut -d: -f2- | xargs)
-            REMOTE_DATE=$(date -d "$REMOTE_DATE_RAW" +%s 2>/dev/null || date -j -f "%a, %d %b %Y %H:%M:%S %Z" "$REMOTE_DATE_RAW" +%s 2>/dev/null || echo "")
+            REMOTE_DATE=$(date -d "$REMOTE_DATE_RAW" +%s 2>/dev/null || echo "")
 
             # R2 にある既存ファイルの Last-Modified を取得
             LOCAL_DATE=$(aws s3api head-object \
@@ -58,7 +73,7 @@ jobs:
               continue
             fi
 
-            echo "Downloading $VERSION..."
+            echo "Downloading $VERSION from $URL..."
             curl -L -o "$FILE" "$URL"
 
             echo "Uploading to R2..."
