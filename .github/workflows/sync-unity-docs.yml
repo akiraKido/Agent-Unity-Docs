@@ -1,4 +1,5 @@
 name: Sync Unity Docs
+# Syncs Unity documentation to R2 storage
 
 on:
   schedule:
