@@ -32,11 +32,8 @@ jobs:
           CLOUDMEDIA_BASE=$(jq -r '.cloudmedia_base' "$CDN_JSON")
           GOOGLE_STORAGE_BASE=$(jq -r '.google_storage_base' "$CDN_JSON")
 
-          # バージョン一覧を取得し、major.minor に変換して重複除去
-          VERSIONS=$(curl -s "https://public-cdn.cloud.unity3d.com/hub/prod/releases-win32.json" \
-            | jq -r '.official[].version' \
-            | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' \
-            | sort -u -V -r)
+          # cdn_versions.json から全バージョンを取得 (cloudmedia + google_storage_only)
+          VERSIONS=$(jq -r '(.cloudmedia + .google_storage_only)[]' "$CDN_JSON" | sort -u -V -r)
 
           for VERSION in $VERSIONS; do
             R2_KEY="${VERSION}/UnityDocumentation.zip"
