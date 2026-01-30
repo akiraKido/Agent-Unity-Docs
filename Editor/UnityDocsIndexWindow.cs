@@ -17,7 +17,8 @@ namespace UnityDocsIndex.Editor
         private Label _titleLabel;
         private Label _descriptionLabel;
         private Label _sourceHeaderLabel;
-        private TextField _versionField;
+        private VisualElement _versionDropdownContainer;
+        private PopupField<string> _versionDropdown;
         private TextField _cdnUrlField;
         private Label _urlPreviewLabel;
         private Label _cdnExampleLabel;
@@ -135,7 +136,23 @@ namespace UnityDocsIndex.Editor
             _titleLabel = root.Q<Label>("title");
             _descriptionLabel = root.Q<Label>("description");
             _sourceHeaderLabel = root.Q<Label>("source-header");
-            _versionField = root.Q<TextField>("version");
+
+            // Create version dropdown
+            _versionDropdownContainer = root.Q<VisualElement>("version-dropdown-container");
+            if (_versionDropdownContainer != null)
+            {
+                var versions = new System.Collections.Generic.List<string>(DocsDownloader.AvailableVersions);
+                var defaultIndex = versions.IndexOf(_version);
+                if (defaultIndex < 0) defaultIndex = 0;
+
+                _versionDropdown = new PopupField<string>(
+                    Localization.Get("unityVersion"),
+                    versions,
+                    defaultIndex);
+                _versionDropdown.AddToClassList("dropdown-field");
+                _versionDropdownContainer.Add(_versionDropdown);
+            }
+
             _cdnUrlField = root.Q<TextField>("cdn-url");
             _urlPreviewLabel = root.Q<Label>("url-preview");
             _cdnExampleLabel = root.Q<Label>("cdn-example");
@@ -160,8 +177,8 @@ namespace UnityDocsIndex.Editor
             _jaButton?.RegisterCallback<ClickEvent>(_ => SetLanguage("ja"));
             _zhButton?.RegisterCallback<ClickEvent>(_ => SetLanguage("zh-CN"));
 
-            // Text fields - use input event for URL preview updates only
-            _versionField?.RegisterCallback<InputEvent>(_ => UpdateUrlPreview());
+            // Version dropdown - use value changed callback
+            _versionDropdown?.RegisterValueChangedCallback(_ => UpdateUrlPreview());
             _cdnUrlField?.RegisterCallback<InputEvent>(_ => UpdateUrlPreview());
 
             // Browse button
@@ -186,7 +203,8 @@ namespace UnityDocsIndex.Editor
             _titleLabel?.SetText(Localization.Get("title"));
             _descriptionLabel?.SetText(Localization.Get("description"));
             _sourceHeaderLabel?.SetText(Localization.Get("documentationSource"));
-            _versionField?.SetLabel(Localization.Get("unityVersion"));
+            if (_versionDropdown != null)
+                _versionDropdown.label = Localization.Get("unityVersion");
             _cdnUrlField?.SetLabel(Localization.Get("cdnUrlOptional"));
             _cdnExampleLabel?.SetText(Localization.Get("cdnUrlExample"));
             _outputHeaderLabel?.SetText(Localization.Get("outputSettings"));
@@ -223,7 +241,7 @@ namespace UnityDocsIndex.Editor
             if (_urlPreviewLabel == null) return;
 
             // Read directly from fields
-            var version = _versionField?.value ?? _version;
+            var version = _versionDropdown?.value ?? _version;
             var cdnUrl = _cdnUrlField?.value ?? _cdnUrl;
 
             var fullUrl = DocsDownloader.GetCurrentDocsUrl(version, cdnUrl);
@@ -293,7 +311,7 @@ namespace UnityDocsIndex.Editor
 
         private void SetInputsEnabled(bool enabled)
         {
-            _versionField?.SetEnabled(enabled);
+            _versionDropdown?.SetEnabled(enabled);
             _cdnUrlField?.SetEnabled(enabled);
             _outputFileField?.SetEnabled(enabled);
             _browseOutputButton?.SetEnabled(enabled);
@@ -304,7 +322,7 @@ namespace UnityDocsIndex.Editor
 
         private void SyncFieldsFromState()
         {
-            _versionField?.SetValueWithoutNotify(_version);
+            _versionDropdown?.SetValueWithoutNotify(_version);
             _cdnUrlField?.SetValueWithoutNotify(_cdnUrl);
             _outputFileField?.SetValueWithoutNotify(_outputFile);
         }
@@ -514,7 +532,7 @@ namespace UnityDocsIndex.Editor
         private void SavePrefs()
         {
             // Read directly from fields to avoid callback issues
-            var version = _versionField?.value ?? _version;
+            var version = _versionDropdown?.value ?? _version;
             var cdnUrl = _cdnUrlField?.value ?? _cdnUrl;
             var outputFile = _outputFileField?.value ?? _outputFile;
 
@@ -567,7 +585,7 @@ namespace UnityDocsIndex.Editor
             try
             {
                 // Read values from fields
-                var version = _versionField?.value ?? _version;
+                var version = _versionDropdown?.value ?? _version;
                 var cdnUrl = _cdnUrlField?.value ?? _cdnUrl;
                 var outputFile = _outputFileField?.value ?? _outputFile;
 

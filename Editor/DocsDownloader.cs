@@ -16,9 +16,12 @@ namespace UnityDocsIndex.Editor
         private const string CdnVersionsFileName = "cdn_versions.json";
 
         private static HashSet<string> _cloudMediaVersions;
+        private static List<string> _allVersions;
         private static string _googleStorageBase;
         private static string _cloudMediaBase;
         private static string _customCdnUrl = "";
+
+        public static IReadOnlyList<string> AvailableVersions => _allVersions;
 
         static DocsDownloader()
         {
@@ -28,6 +31,7 @@ namespace UnityDocsIndex.Editor
         private static void LoadCdnVersions()
         {
             _cloudMediaVersions = new HashSet<string>();
+            _allVersions = new List<string>();
             _googleStorageBase = "https://storage.googleapis.com/docscloudstorage";
             _cloudMediaBase = "https://cloudmedia-docs.unity3d.com/docscloudstorage/en";
 
@@ -38,9 +42,10 @@ namespace UnityDocsIndex.Editor
                 // Fallback defaults
                 _cloudMediaVersions = new HashSet<string>
                 {
-                    "6000.5", "6000.4", "6000.3", "6000.2", "6000.1", "6000.0",
+                    "6000.5", "6000.4", "6000.2", "6000.1", "6000.0",
                     "2023.2", "2023.1", "2022.3", "2022.2", "2021.3", "2020.3"
                 };
+                _allVersions = new List<string>(_cloudMediaVersions);
                 return;
             }
 
@@ -79,7 +84,21 @@ namespace UnityDocsIndex.Editor
                 var versionMatches = Regex.Matches(versionsStr, @"""([^""]+)""");
                 foreach (Match m in versionMatches)
                 {
-                    _cloudMediaVersions.Add(m.Groups[1].Value);
+                    var version = m.Groups[1].Value;
+                    _cloudMediaVersions.Add(version);
+                    _allVersions.Add(version);
+                }
+            }
+
+            // Parse google_storage_only versions
+            var gsOnlyMatch = Regex.Match(json, @"""google_storage_only""\s*:\s*\[(.*?)\]", RegexOptions.Singleline);
+            if (gsOnlyMatch.Success)
+            {
+                var versionsStr = gsOnlyMatch.Groups[1].Value;
+                var versionMatches = Regex.Matches(versionsStr, @"""([^""]+)""");
+                foreach (Match m in versionMatches)
+                {
+                    _allVersions.Add(m.Groups[1].Value);
                 }
             }
 

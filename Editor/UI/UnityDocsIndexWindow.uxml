@@ -20,7 +20,7 @@
         <ui:Label name="source-header" class="section-header" />
 
         <ui:VisualElement class="panel">
-            <ui:TextField name="version" class="text-field" />
+            <ui:VisualElement name="version-dropdown-container" class="dropdown-field" />
             <ui:TextField name="cdn-url" class="text-field" />
             <ui:VisualElement name="url-preview-box" class="info-box small">
                 <ui:Label name="url-preview" class="info-text small" />

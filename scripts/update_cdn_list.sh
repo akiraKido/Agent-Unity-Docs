@@ -82,6 +82,7 @@ echo "$VERSIONS" | head -5
 echo "..."
 
 CLOUDMEDIA_VERSIONS=()
+GOOGLE_STORAGE_VERSIONS=()
 
 echo ""
 echo "Checking cloudmedia availability..."
@@ -95,6 +96,7 @@ for VERSION in $VERSIONS; do
     CLOUDMEDIA_VERSIONS+=("$VERSION")
   else
     echo "  $VERSION: Google Storage (cloudmedia: $STATUS)"
+    GOOGLE_STORAGE_VERSIONS+=("$VERSION")
   fi
 done
 
@@ -116,11 +118,26 @@ echo "Generating $JSON_FILE..."
     fi
   done
   echo "  ],"
+  echo "  \"google_storage_only\": ["
+  count=${#GOOGLE_STORAGE_VERSIONS[@]}
+  i=0
+  for v in "${GOOGLE_STORAGE_VERSIONS[@]}"; do
+    i=$((i + 1))
+    if [ $i -eq $count ]; then
+      echo "    \"$v\""
+    else
+      echo "    \"$v\","
+    fi
+  done
+  echo "  ],"
   echo "  \"google_storage_base\": \"https://storage.googleapis.com/docscloudstorage\","
   echo "  \"cloudmedia_base\": \"https://cloudmedia-docs.unity3d.com/docscloudstorage/en\""
   echo "}"
 } > "$JSON_FILE"
 
 echo ""
-echo "Done! Cloudmedia versions: ${#CLOUDMEDIA_VERSIONS[@]}"
+echo "Done!"
+echo "  Cloudmedia: ${#CLOUDMEDIA_VERSIONS[@]} versions"
+echo "  Google Storage only: ${#GOOGLE_STORAGE_VERSIONS[@]} versions"
+echo "  Total: $((${#CLOUDMEDIA_VERSIONS[@]} + ${#GOOGLE_STORAGE_VERSIONS[@]})) versions"
 cat "$JSON_FILE"

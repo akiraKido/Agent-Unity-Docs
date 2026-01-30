@@ -94,6 +94,11 @@
     margin-bottom: 5px;
 }
 
+/* Dropdown field */
+.dropdown-field {
+    margin-bottom: 5px;
+}
+
 .text-field-stretch {
     flex-grow: 1;
     margin-right: 5px;

@@ -12,6 +12,30 @@
     "2021.3",
     "2020.3"
   ],
+  "google_storage_only": [
+    "2022.1",
+    "2021.2",
+    "2021.1",
+    "2020.2",
+    "2020.1",
+    "2019.4",
+    "2019.3",
+    "2019.2",
+    "2019.1",
+    "2018.4",
+    "2018.3",
+    "2018.2",
+    "2018.1",
+    "2017.4",
+    "2017.3",
+    "2017.2",
+    "2017.1",
+    "5.6",
+    "5.5",
+    "5.4",
+    "5.3",
+    "5.2"
+  ],
   "google_storage_base": "https://storage.googleapis.com/docscloudstorage",
   "cloudmedia_base": "https://cloudmedia-docs.unity3d.com/docscloudstorage/en"
 }
