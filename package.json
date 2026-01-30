@@ -4,7 +4,7 @@
   "displayName": "Unity Docs Index Generator",
   "description": "Generate Unity documentation index for AI coding agents (Claude, Cursor, etc.)",
   "unity": "2021.3",
-  "documentationUrl": "https://github.com/tsuchigoe/agent-unity-docs",
+  "documentationUrl": "https://github.com/akiraKido/Agent-Unity-Docs",
   "keywords": [
     "documentation",
     "ai",
@@ -13,8 +13,8 @@
     "index"
   ],
   "author": {
-    "name": "Ichiro Dohi",
-    "url": "https://github.com/tsuchigoe/agent-unity-docs"
+    "name": "Tsuchigoe Games",
+    "url": "https://github.com/akiraKido/Agent-Unity-Docs"
   },
   "type": "tool"
 }
