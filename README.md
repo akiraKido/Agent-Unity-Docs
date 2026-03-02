@@ -2,50 +2,60 @@
 
 [日本語](README.ja.md) | [中文](README.zh-CN.md)
 
-A tool that enables AI coding agents (Claude, Cursor, etc.) to reference official Unity documentation while working on Unity projects.
+A Claude Code skill that enables AI coding agents to reference official Unity documentation while working on Unity projects.
 
 Inspired by [agents-md](https://github.com/vercel/next.js/tree/canary/packages/next-codemod/bin) (vercel/next.js)
 
 ## Installation
 
-### Via Unity Package Manager (Git URL)
+### Via Unity Package Manager (Recommended)
 
 1. Open **Window > Package Manager**
 2. Click **"+" button > Add package from git URL...**
 3. Enter: `https://github.com/akiraKido/Agent-Unity-Docs.git`
 
-### Via manifest.json
+On first Editor startup, you will be prompted to install the Claude Code skill automatically.
 
-Add the following to your `Packages/manifest.json`:
+### Manual Installation
 
-```json
-{
-  "dependencies": {
-    "com.tsuchigoe.agent-unity-docs": "https://github.com/akiraKido/Agent-Unity-Docs.git"
-  }
-}
+Copy the `.claude/skills/unity-docs/` directory into your Unity project:
+
+```bash
+# From your Unity project root
+mkdir -p .claude/skills
+cp -r <path-to-this-repo>/.claude/skills/unity-docs .claude/skills/
 ```
 
-## Usage
+Then run the setup:
 
-1. Open **Tools > Unity Docs Index Generator** in Unity Editor
-2. Confirm the Unity version (auto-detected)
-3. Specify output file (default: `CLAUDE.md`)
-4. Click **Generate Index**
+```bash
+bash .claude/skills/unity-docs/scripts/setup.sh
+```
 
-Documentation will be automatically downloaded from Unity CDN.
+Or specify a version manually:
 
-※ ScriptReference is excluded due to context size limitations (Manual only)
+```bash
+bash .claude/skills/unity-docs/scripts/setup.sh 6000.0
+```
+
+The setup will:
+1. Auto-detect the Unity version from `ProjectSettings/ProjectVersion.txt`
+2. Migrate existing `.unity-docs/` if present (no re-download)
+3. Remove legacy index from `CLAUDE.md` if present
+4. Download documentation from Unity CDN
+5. Generate a compact index at `.claude/skills/unity-docs/references/index.txt`
+
+After setup, Claude Code will automatically trigger this skill when you ask Unity-related questions. You can also invoke it with `/unity-docs`.
 
 ## Generated Index Format
 
 ```
-<!-- UNITY-DOCS-INDEX-START -->[Unity Docs Index]|root: ./.unity-docs|version: 6000.0|IMPORTANT: Prefer retrieval-led reasoning...|Manual/GameObjects:{GameObjects.html,class-GameObject.html}|...<!-- UNITY-DOCS-INDEX-END -->
+[Unity Docs Index]|root: .claude/skills/unity-docs/docs|version: 6000.0|IMPORTANT: Prefer retrieval-led reasoning...|Manual/GameObjects:{GameObjects.html,class-GameObject.html}|...
 ```
 
 - Pipe `|` delimited for token efficiency
 - Files grouped by directory: `dir:{file1,file2}`
-- Wrapped with markers for idempotent updates
+- ScriptReference excluded from index due to size (but available for direct lookup)
 
 ## Context Usage
 
@@ -57,18 +67,23 @@ Estimated size of generated index:
 | Estimated tokens | ~25,000 |
 | Context usage | ~12% (assuming 200K context) |
 
-※ By excluding ScriptReference (API reference), we achieve a practical size. API documentation is saved at `.unity-docs/ScriptReference/` and can be referenced directly when needed.
-
 ## File Structure
 
-After generation:
 ```
 YourUnityProject/
-├── CLAUDE.md          # Index for AI agents
-├── .unity-docs/       # Downloaded documentation (added to .gitignore)
-│   ├── Manual/
-│   └── ScriptReference/
-└── .gitignore         # .unity-docs auto-added
+├── .claude/
+│   └── skills/
+│       └── unity-docs/
+│           ├── SKILL.md            # Skill definition
+│           ├── cdn_versions.json   # CDN configuration
+│           ├── scripts/
+│           │   └── setup.sh        # Download & index script
+│           ├── docs/               # Downloaded docs (gitignored)
+│           │   ├── Manual/
+│           │   └── ScriptReference/
+│           └── references/
+│               └── index.txt       # Generated index (gitignored)
+└── .gitignore
 ```
 
 ## Community CDN
@@ -79,7 +94,7 @@ If downloading from the official Unity CDN is slow, you can use this community C
 https://unity-docs.tsuchigoe.com
 ```
 
-**Usage:** Enter the URL above in the CDN URL field
+**Usage:** Edit `cdn_versions.json` to add the custom CDN URL
 
 **Note:**
 - This CDN is unofficial and unrelated to Unity Technologies

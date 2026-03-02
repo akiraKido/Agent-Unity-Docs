@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,8 +6,6 @@ namespace UnityDocsIndex.Editor
     [InitializeOnLoad]
     public static class DocsVersionChecker
     {
-        private const string DocsDir = ".unity-docs";
-        private const string IndexMarker = "<!-- UNITY-DOCS-INDEX-START -->";
         private const string PrefsPrefix = "UnityDocsIndex_";
         private const string LastDownloadedVersionKey = PrefsPrefix + "LastDownloadedVersion";
 
@@ -20,27 +17,24 @@ namespace UnityDocsIndex.Editor
 
         private static void CheckVersion()
         {
-            var projectRoot = Path.GetDirectoryName(Application.dataPath);
-            var docsPath = Path.Combine(projectRoot, DocsDir);
-            var docsExist = DocsDownloader.DocsExist(docsPath);
+            // Step 1: Check if skill is installed
+            if (!SkillInstaller.IsSkillInstalled())
+            {
+                PromptSkillInstall();
+                return;
+            }
 
-            // Check if CLAUDE.md has index but docs are missing
-            if (!docsExist && HasIndexInClaudeMd(projectRoot))
+            // Step 2: Check if docs exist in skill directory
+            if (!SkillInstaller.DocsExist())
             {
                 PromptDocsMissing();
                 return;
             }
 
-            // Only check version if docs have been downloaded before
-            if (!docsExist)
-            {
-                return;
-            }
-
+            // Step 3: Check version change
             var currentVersion = DocsDownloader.NormalizeVersion(DocsDownloader.GetUnityVersion());
             var lastDownloadedVersion = EditorPrefs.GetString(LastDownloadedVersionKey, "");
 
-            // If version changed, prompt user
             if (!string.IsNullOrEmpty(lastDownloadedVersion) && lastDownloadedVersion != currentVersion)
             {
                 var result = EditorUtility.DisplayDialog(
@@ -51,23 +45,40 @@ namespace UnityDocsIndex.Editor
 
                 if (result)
                 {
-                    // Open window and trigger download
                     var window = EditorWindow.GetWindow<UnityDocsIndexWindow>("Unity Docs Index");
                     window.StartAutoUpdate(currentVersion);
                 }
             }
         }
 
-        private static bool HasIndexInClaudeMd(string projectRoot)
+        private static void PromptSkillInstall()
         {
-            var claudeMdPath = Path.Combine(projectRoot, "CLAUDE.md");
-            if (!File.Exists(claudeMdPath))
+            var result = EditorUtility.DisplayDialog(
+                Localization.Get("skillNotInstalledTitle"),
+                Localization.Get("skillNotInstalledMessage"),
+                Localization.Get("install"),
+                Localization.Get("ignore"));
+
+            if (!result)
+                return;
+
+            var installResult = SkillInstaller.InstallSkill();
+            if (installResult != SkillInstallResult.Success
+                && installResult != SkillInstallResult.AlreadyInstalled)
             {
-                return false;
+                Debug.LogError($"Skill installation failed: {installResult}");
+                return;
             }
 
-            var content = File.ReadAllText(claudeMdPath);
-            return content.Contains(IndexMarker);
+            SkillInstaller.EnsureGitignoreAllowsSkill();
+            SkillInstaller.CleanLegacyIndex();
+            SkillInstaller.MigrateLegacyDocs();
+
+            // Open window to download docs if needed
+            if (!SkillInstaller.DocsExist())
+            {
+                EditorWindow.GetWindow<UnityDocsIndexWindow>("Unity Docs Index");
+            }
         }
 
         private static void PromptDocsMissing()

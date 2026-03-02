@@ -102,4 +102,5 @@ InitTestScene*.unity*
 .DS_Store
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/skills/

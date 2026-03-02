@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -10,7 +12,6 @@ namespace UnityDocsIndex.Editor
 {
     public class UnityDocsIndexWindow : EditorWindow
     {
-        private const string DocsDir = ".unity-docs";
         private const string PrefsPrefix = "UnityDocsIndex_";
 
         // UI Elements
@@ -39,7 +40,6 @@ namespace UnityDocsIndex.Editor
         // State
         private string _version = "";
         private string _cdnUrl = "";
-        private string _outputFile = "CLAUDE.md";
 
         private bool _isProcessing = false;
         private float _downloadProgress = 0f;
@@ -48,8 +48,6 @@ namespace UnityDocsIndex.Editor
 
         // Background task state
         private Task<(GenerateResult result, string index)> _backgroundTask;
-        private string _pendingOutputPath;
-        private string _pendingGitignorePath;
         private string _pendingVersion;
 
         [MenuItem("Tools/Unity Docs Index Generator")]
@@ -110,6 +108,9 @@ namespace UnityDocsIndex.Editor
             // Setup event handlers
             SetupEventHandlers();
 
+            // Hide output settings (output is now fixed to skill directory)
+            HideOutputSettings();
+
             // Initialize UI
             SyncFieldsFromState();    // Set field values first
             UpdateLocalizedTexts();   // Then update labels (includes UpdateUrlPreview)
@@ -141,7 +142,7 @@ namespace UnityDocsIndex.Editor
             _versionDropdownContainer = root.Q<VisualElement>("version-dropdown-container");
             if (_versionDropdownContainer != null)
             {
-                var versions = new System.Collections.Generic.List<string>(DocsDownloader.AvailableVersions);
+                var versions = new List<string>(DocsDownloader.AvailableVersions);
                 var defaultIndex = versions.IndexOf(_version);
                 if (defaultIndex < 0) defaultIndex = 0;
 
@@ -170,6 +171,14 @@ namespace UnityDocsIndex.Editor
             _zhButton = root.Q<Button>("btn-zh");
         }
 
+        private void HideOutputSettings()
+        {
+            // Output is now always .claude/skills/unity-docs/references/index.txt
+            if (_outputHeaderLabel != null) _outputHeaderLabel.style.display = DisplayStyle.None;
+            if (_outputFileField != null) _outputFileField.style.display = DisplayStyle.None;
+            if (_browseOutputButton != null) _browseOutputButton.style.display = DisplayStyle.None;
+        }
+
         private void SetupEventHandlers()
         {
             // Language buttons
@@ -180,9 +189,6 @@ namespace UnityDocsIndex.Editor
             // Version dropdown - use value changed callback
             _versionDropdown?.RegisterValueChangedCallback(_ => UpdateUrlPreview());
             _cdnUrlField?.RegisterCallback<InputEvent>(_ => UpdateUrlPreview());
-
-            // Browse button
-            _browseOutputButton?.RegisterCallback<ClickEvent>(_ => BrowseOutputFile());
 
             // Action buttons
             _generateButton?.RegisterCallback<ClickEvent>(_ => GenerateIndex());
@@ -207,12 +213,9 @@ namespace UnityDocsIndex.Editor
                 _versionDropdown.label = Localization.Get("unityVersion");
             _cdnUrlField?.SetLabel(Localization.Get("cdnUrlOptional"));
             _cdnExampleLabel?.SetText(Localization.Get("cdnUrlExample"));
-            _outputHeaderLabel?.SetText(Localization.Get("outputSettings"));
-            _outputFileField?.SetLabel(Localization.Get("outputFile"));
             _generateButton?.SetText(Localization.Get("generateIndex"));
             _cancelButton?.SetText(Localization.Get("cancel"));
             _resetButton?.SetText(Localization.Get("reset"));
-            _browseOutputButton?.SetText(Localization.Get("browse"));
 
             UpdateUrlPreview();
             UpdateLanguageButtonStyles();
@@ -313,8 +316,6 @@ namespace UnityDocsIndex.Editor
         {
             _versionDropdown?.SetEnabled(enabled);
             _cdnUrlField?.SetEnabled(enabled);
-            _outputFileField?.SetEnabled(enabled);
-            _browseOutputButton?.SetEnabled(enabled);
             _enButton?.SetEnabled(enabled);
             _jaButton?.SetEnabled(enabled);
             _zhButton?.SetEnabled(enabled);
@@ -324,23 +325,6 @@ namespace UnityDocsIndex.Editor
         {
             _versionDropdown?.SetValueWithoutNotify(_version);
             _cdnUrlField?.SetValueWithoutNotify(_cdnUrl);
-            _outputFileField?.SetValueWithoutNotify(_outputFile);
-        }
-
-        private void BrowseOutputFile()
-        {
-            var projectRoot = Path.GetDirectoryName(Application.dataPath);
-            var path = EditorUtility.SaveFilePanel(Localization.Get("saveIndexFile"), projectRoot, _outputFile, "md");
-            if (!string.IsNullOrEmpty(path))
-            {
-                // Make relative to project root if possible
-                if (path.StartsWith(projectRoot))
-                {
-                    path = path.Substring(projectRoot.Length + 1);
-                }
-                _outputFile = path;
-                _outputFileField?.SetValueWithoutNotify(path);
-            }
         }
 
         private void OnEditorUpdate()
@@ -367,34 +351,33 @@ namespace UnityDocsIndex.Editor
                 }
                 else
                 {
-                    // Get the result
                     var (generateResult, indexContent) = _backgroundTask.Result;
 
-                    // Handle generation result
                     if (generateResult != GenerateResult.Success)
                     {
                         _statusMessage = GetGenerateResultMessage(generateResult);
                         return;
                     }
 
-                    // Write files on main thread (safer for Unity)
-                    var injectResult = FileInjector.InjectIntoFile(_pendingOutputPath, indexContent);
-                    if (!IsInjectSuccess(injectResult))
-                    {
-                        _statusMessage = GetInjectResultMessage(injectResult);
-                        return;
-                    }
+                    // Write index directly to skill references directory
+                    var indexPath = SkillInstaller.IndexPath;
+                    var indexDir = Path.GetDirectoryName(indexPath);
+                    Directory.CreateDirectory(indexDir);
 
-                    var gitignoreResult = FileInjector.UpdateGitignore(_pendingGitignorePath, DocsDir);
-                    // Gitignore errors are non-fatal, just log them
-                    if (IsGitignoreError(gitignoreResult))
+                    try
                     {
-                        Debug.LogWarning(GetGitignoreResultMessage(gitignoreResult));
+                        File.WriteAllText(indexPath, indexContent, Encoding.UTF8);
+                    }
+                    catch (Exception e)
+                    {
+                        _statusMessage = Localization.Get("errorWriteFailed");
+                        Debug.LogError($"Failed to write index: {e.Message}");
+                        return;
                     }
 
                     DocsVersionChecker.SaveDownloadedVersion(_pendingVersion);
 
-                    _statusMessage = Localization.Get("done", _outputFile);
+                    _statusMessage = Localization.Get("done", SkillInstaller.DocsRelativeRoot);
                     AssetDatabase.Refresh();
                 }
             }
@@ -450,95 +433,41 @@ namespace UnityDocsIndex.Editor
             }
         }
 
-        private static string GetInjectResultMessage(InjectResult result)
-        {
-            switch (result)
-            {
-                case InjectResult.SuccessCreated:
-                case InjectResult.SuccessUpdated:
-                case InjectResult.SuccessAppended:
-                    return "";
-                case InjectResult.ErrorFilePathEmpty:
-                    return Localization.Get("errorFilePathEmpty");
-                case InjectResult.ErrorFileNotFound:
-                    return Localization.Get("errorFileNotFound");
-                case InjectResult.ErrorWriteFailed:
-                    return Localization.Get("errorWriteFailed");
-                default:
-                    return $"Error: Unknown inject error ({result})";
-            }
-        }
-
-        private static bool IsInjectSuccess(InjectResult result)
-        {
-            return result == InjectResult.SuccessCreated
-                || result == InjectResult.SuccessUpdated
-                || result == InjectResult.SuccessAppended;
-        }
-
-        private static string GetGitignoreResultMessage(GitignoreResult result)
-        {
-            switch (result)
-            {
-                case GitignoreResult.SuccessCreated:
-                case GitignoreResult.SuccessUpdated:
-                case GitignoreResult.AlreadyPresent:
-                    return "";
-                case GitignoreResult.ErrorPathEmpty:
-                    return "Gitignore path is empty";
-                case GitignoreResult.ErrorWriteFailed:
-                    return "Failed to update .gitignore";
-                default:
-                    return $"Unknown gitignore error ({result})";
-            }
-        }
-
-        private static bool IsGitignoreError(GitignoreResult result)
-        {
-            return result == GitignoreResult.ErrorPathEmpty
-                || result == GitignoreResult.ErrorWriteFailed;
-        }
-
         #endregion
 
         private void LoadPrefs()
         {
             // Check prefs version - reset if outdated or corrupted
-            const int currentPrefsVersion = 4;
+            const int currentPrefsVersion = 5;
             var savedPrefsVersion = EditorPrefs.GetInt(PrefsPrefix + "PrefsVersion", 0);
 
             if (savedPrefsVersion < currentPrefsVersion)
             {
-                // Clear old/corrupted prefs
                 ClearPrefs();
                 EditorPrefs.SetInt(PrefsPrefix + "PrefsVersion", currentPrefsVersion);
             }
 
             _version = EditorPrefs.GetString(PrefsPrefix + "Version", "");
             _cdnUrl = EditorPrefs.GetString(PrefsPrefix + "CdnUrl", "");
-            _outputFile = EditorPrefs.GetString(PrefsPrefix + "OutputFile", "CLAUDE.md");
         }
 
         private static void ClearPrefs()
         {
             EditorPrefs.DeleteKey(PrefsPrefix + "Version");
             EditorPrefs.DeleteKey(PrefsPrefix + "CdnUrl");
+            // Delete legacy keys
             EditorPrefs.DeleteKey(PrefsPrefix + "OutputFile");
-            // Also delete old keys for clean migration
             EditorPrefs.DeleteKey(PrefsPrefix + "SourcePath");
             EditorPrefs.DeleteKey(PrefsPrefix + "UseLocalSource");
         }
 
         private void SavePrefs()
         {
-            // Read directly from fields to avoid callback issues
             var version = _versionDropdown?.value ?? _version;
             var cdnUrl = _cdnUrlField?.value ?? _cdnUrl;
-            var outputFile = _outputFileField?.value ?? _outputFile;
 
             EditorPrefs.SetString(PrefsPrefix + "Version", version);
             EditorPrefs.SetString(PrefsPrefix + "CdnUrl", cdnUrl);
-            EditorPrefs.SetString(PrefsPrefix + "OutputFile", outputFile);
         }
 
         public void StartAutoUpdate(string version)
@@ -546,8 +475,7 @@ namespace UnityDocsIndex.Editor
             _version = version;
 
             // Delete existing docs to force re-download
-            var projectRoot = Path.GetDirectoryName(Application.dataPath);
-            var docsPath = Path.Combine(projectRoot, DocsDir);
+            var docsPath = SkillInstaller.DocsPath;
             if (Directory.Exists(docsPath))
             {
                 Directory.Delete(docsPath, true);
@@ -584,17 +512,32 @@ namespace UnityDocsIndex.Editor
 
             try
             {
-                // Read values from fields
                 var version = _versionDropdown?.value ?? _version;
                 var cdnUrl = _cdnUrlField?.value ?? _cdnUrl;
-                var outputFile = _outputFileField?.value ?? _outputFile;
 
                 _isProcessing = true;
                 _statusMessage = Localization.Get("starting");
                 UpdateUIState();
 
-                var projectRoot = Path.GetDirectoryName(Application.dataPath);
-                var docsPath = Path.Combine(projectRoot, DocsDir);
+                // Step 0: Install skill if not installed
+                if (!SkillInstaller.IsSkillInstalled())
+                {
+                    var installResult = SkillInstaller.InstallSkill();
+                    if (installResult != SkillInstallResult.Success
+                        && installResult != SkillInstallResult.AlreadyInstalled)
+                    {
+                        _statusMessage = Localization.Get("errorGenerationFailed");
+                        _isProcessing = false;
+                        UpdateUIState();
+                        return;
+                    }
+
+                    SkillInstaller.EnsureGitignoreAllowsSkill();
+                    SkillInstaller.CleanLegacyIndex();
+                    SkillInstaller.MigrateLegacyDocs();
+                }
+
+                var docsPath = SkillInstaller.DocsPath;
 
                 // Step 1: Download documentation if needed
                 if (!DocsDownloader.DocsExist(docsPath))
@@ -602,7 +545,6 @@ namespace UnityDocsIndex.Editor
                     _statusMessage = Localization.Get("downloadingDocumentation");
                     UpdateUIState();
 
-                    // Set custom CDN URL if provided
                     DocsDownloader.CdnUrl = cdnUrl;
 
                     var downloadResult = await DocsDownloader.DownloadDocsAsync(
@@ -629,7 +571,7 @@ namespace UnityDocsIndex.Editor
                     }
                 }
 
-                // Step 2: Find Manual directory (ScriptReference excluded for context size)
+                // Step 2: Find Manual directory
                 var manualPath = DocsDownloader.GetSectionPath(docsPath, "Manual");
 
                 if (string.IsNullOrEmpty(manualPath))
@@ -642,28 +584,32 @@ namespace UnityDocsIndex.Editor
 
                 // Step 3: Generate index in background thread
                 _statusMessage = Localization.Get("generatingIndex");
-                _downloadProgress = 0f; // Hide progress bar
+                _downloadProgress = 0f;
                 UpdateUIState();
 
-                // Store paths for completion handler
-                _pendingOutputPath = Path.IsPathRooted(outputFile)
-                    ? outputFile
-                    : Path.Combine(projectRoot, outputFile);
-                _pendingGitignorePath = Path.Combine(projectRoot, ".gitignore");
                 _pendingVersion = version;
 
-                // Capture values for background thread
                 var capturedManualPath = manualPath;
-                var capturedDocsDir = DocsDir;
+                var capturedDocsRelativeRoot = SkillInstaller.DocsRelativeRoot;
                 var capturedVersion = version;
 
-                // Run heavy index generation in background (Manual only, ScriptReference excluded)
+                // Generate index WITHOUT markers (writing to standalone file, not injecting)
                 _backgroundTask = Task.Run(() =>
                 {
-                    return DocsIndexGenerator.GenerateFullIndex(
-                        capturedManualPath,
-                        null,
-                        $"./{capturedDocsDir}",
+                    var manualFiles = DocsIndexGenerator.CollectAllFiles(capturedManualPath);
+                    var grouped = DocsIndexGenerator.GroupByDirectory(manualFiles);
+
+                    // Prefix keys with "Manual/"
+                    var allGrouped = new Dictionary<string, System.Collections.Generic.List<string>>();
+                    foreach (var kvp in grouped)
+                    {
+                        var key = kvp.Key == "." ? "Manual" : $"Manual/{kvp.Key}";
+                        allGrouped[key] = kvp.Value;
+                    }
+
+                    return DocsIndexGenerator.GenerateIndex(
+                        allGrouped,
+                        capturedDocsRelativeRoot,
                         capturedVersion);
                 }, token);
 
