@@ -36,6 +36,17 @@ namespace UnityDocsIndex.Editor
     }
 
     /// <summary>
+    /// Result of skill installation operation
+    /// </summary>
+    public enum SkillInstallResult
+    {
+        Success,
+        AlreadyInstalled,
+        ErrorPackageNotFound,
+        ErrorWriteFailed
+    }
+
+    /// <summary>
     /// Result of file injection operation
     /// </summary>
     public enum InjectResult

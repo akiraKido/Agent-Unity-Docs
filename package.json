@@ -1,6 +1,6 @@
 {
   "name": "com.tsuchigoe.agent-unity-docs",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "displayName": "Unity Docs Index Generator",
   "description": "Generate Unity documentation index for AI coding agents (Claude, Cursor, etc.)",
   "unity": "2021.3",

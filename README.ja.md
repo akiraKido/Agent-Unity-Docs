@@ -2,50 +2,60 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-AIコーディングエージェント（Claude、Cursor等）がUnityプロジェクトで作業する際に、公式ドキュメントを参照できるようにするためのツール。
+AIコーディングエージェントがUnityプロジェクトで作業する際に、公式ドキュメントを参照できるようにするClaude Codeスキル。
 
 Inspired by [agents-md](https://github.com/vercel/next.js/tree/canary/packages/next-codemod/bin) (vercel/next.js)
 
 ## インストール
 
-### Unity Package Manager経由 (Git URL)
+### Unity Package Manager経由（推奨）
 
 1. **Window > Package Manager** を開く
 2. **「+」ボタン > Add package from git URL...** をクリック
 3. 入力: `https://github.com/akiraKido/Agent-Unity-Docs.git`
 
-### manifest.json経由
+Editor初回起動時に、Claude Codeスキルのインストールが自動で提案されます。
 
-`Packages/manifest.json` に以下を追加:
+### 手動インストール
 
-```json
-{
-  "dependencies": {
-    "com.tsuchigoe.agent-unity-docs": "https://github.com/akiraKido/Agent-Unity-Docs.git"
-  }
-}
+`.claude/skills/unity-docs/` ディレクトリをUnityプロジェクトにコピー:
+
+```bash
+# Unityプロジェクトのルートから
+mkdir -p .claude/skills
+cp -r <このリポジトリのパス>/.claude/skills/unity-docs .claude/skills/
 ```
 
-## 使い方
+セットアップを実行:
 
-1. Unity Editor で **Tools > Unity Docs Index Generator** を開く
-2. Unityバージョンを確認（自動検出）
-3. 出力ファイルを指定（デフォルト: `CLAUDE.md`）
-4. **Generate Index** をクリック
+```bash
+bash .claude/skills/unity-docs/scripts/setup.sh
+```
 
-ドキュメントはUnity CDNから自動的にダウンロードされます。
+バージョンを明示的に指定する場合:
 
-※ ScriptReferenceはコンテキストサイズの関係で除外されます（Manualのみ）
+```bash
+bash .claude/skills/unity-docs/scripts/setup.sh 6000.0
+```
+
+セットアップは以下を行います:
+1. `ProjectSettings/ProjectVersion.txt` からUnityバージョンを自動検出
+2. 既存の `.unity-docs/` があればスキルディレクトリに移動（再ダウンロード不要）
+3. `CLAUDE.md` にレガシーインデックスがあれば削除
+4. Unity CDNからドキュメントをダウンロード
+5. `.claude/skills/unity-docs/references/index.txt` にコンパクトな索引を生成
+
+セットアップ後、Unity関連の質問をするとClaude Codeが自動でこのスキルをトリガーします。`/unity-docs` で明示的に起動することもできます。
 
 ## 生成されるインデックス形式
 
 ```
-<!-- UNITY-DOCS-INDEX-START -->[Unity Docs Index]|root: ./.unity-docs|version: 6000.0|IMPORTANT: Prefer retrieval-led reasoning...|Manual/GameObjects:{GameObjects.html,class-GameObject.html}|...<!-- UNITY-DOCS-INDEX-END -->
+[Unity Docs Index]|root: .claude/skills/unity-docs/docs|version: 6000.0|IMPORTANT: Prefer retrieval-led reasoning...|Manual/GameObjects:{GameObjects.html,class-GameObject.html}|...
 ```
 
 - パイプ `|` 区切りでトークン節約
 - ディレクトリごとにファイルをグループ化: `dir:{file1,file2}`
-- マーカーで囲んで更新可能（idempotent）
+- ScriptReferenceはサイズのため索引外（直接参照は可能）
 
 ## コンテキスト使用量
 
@@ -57,18 +67,23 @@ Inspired by [agents-md](https://github.com/vercel/next.js/tree/canary/packages/n
 | 推定トークン数 | 約 2.5万 |
 | コンテキスト占有率 | 約 12% (200Kコンテキスト想定) |
 
-※ ScriptReference（APIリファレンス）を除外することで、実用的なサイズを実現しています。APIドキュメントは `.unity-docs/ScriptReference/` に保存されており、必要に応じて直接参照できます。
-
 ## ファイル構造
 
-生成後:
 ```
 YourUnityProject/
-├── CLAUDE.md          # AIエージェント用インデックス
-├── .unity-docs/       # ダウンロードされたドキュメント（.gitignoreに追加）
-│   ├── Manual/
-│   └── ScriptReference/
-└── .gitignore         # .unity-docs が自動追加
+├── .claude/
+│   └── skills/
+│       └── unity-docs/
+│           ├── SKILL.md            # スキル定義
+│           ├── cdn_versions.json   # CDN設定
+│           ├── scripts/
+│           │   └── setup.sh        # DL＋索引生成スクリプト
+│           ├── docs/               # DLされたドキュメント（gitignored）
+│           │   ├── Manual/
+│           │   └── ScriptReference/
+│           └── references/
+│               └── index.txt       # 生成された索引（gitignored）
+└── .gitignore
 ```
 
 ## Community CDN
@@ -79,7 +94,7 @@ Unity公式CDNからのダウンロードが遅い場合、以下のコミュニ
 https://unity-docs.tsuchigoe.com
 ```
 
-**使い方:** CDN URL フィールドに上記URLを入力
+**使い方:** `cdn_versions.json` を編集してカスタムCDN URLを追加
 
 **注意:**
 - このCDNは非公式であり、Unity Technologies とは無関係です
