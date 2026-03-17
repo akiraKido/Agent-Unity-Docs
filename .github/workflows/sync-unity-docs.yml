@@ -71,7 +71,7 @@ jobs:
             fi
 
             echo "Downloading $VERSION from $URL..."
-            curl -L -o "$FILE" "$URL"
+            curl -L --retry 3 --retry-delay 10 --retry-all-errors -o "$FILE" "$URL"
 
             echo "Uploading to R2..."
             aws s3 cp "$FILE" "s3://${R2_BUCKET}/${R2_KEY}" \
